@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แดชบอร์ดรายงานประสิทธิภาพเครื่องกำเนิดไฟฟ้า</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2canvas CDN for capturing HTML content as an image -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Fonts - Sarabun for Thai font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Custom styles to override or extend Tailwind, primarily for font and specific component behaviors -->
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif; /* Apply Sarabun font to the entire body */
+            background-color: #F9FAFB; /* Light Gray background */
+            color: #1F2937; /* Dark Gray text color */
+        }
+        /* Styles for chart containers to ensure responsiveness */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 40vh; /* Responsive height */
+            max-height: 400px; /* Maximum height for larger screens */
+        }
+        /* Styling for metric cards (sections) */
+        .metric-card {
+            background-color: white; /* White background for cards */
+            border-radius: 0.75rem; /* Rounded corners */
+            padding: 1.5rem; /* Padding inside cards */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* Subtle shadow */
+            transition: transform 0.2s, box-shadow 0.2s; /* Smooth transition for hover effects */
+        }
+        .metric-card:hover {
+            transform: translateY(-4px); /* Slight lift on hover */
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1); /* Enhanced shadow on hover */
+        }
+        /* Styling for active and inactive buttons */
+        .btn-active {
+            background-color: #3B82F6; /* Blue 500 for active state */
+            color: white; /* White text for active state */
+        }
+        .btn-inactive {
+            background-color: #E5E7EB; /* Gray 200 for inactive state */
+            color: #4B5563; /* Gray 600 text for inactive state */
+        }
+        /* Styling for icon wrappers (though no icons are used in the provided code, this style is kept) */
+        .icon-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 9999px; /* Makes it a circle */
+            margin-bottom: 1rem;
+        }
+        /* Style for the download button to match theme */
+        #download-report-btn {
+            background-color: #10B981; /* Emerald 500 */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        #download-report-btn:hover {
+            background-color: #059669; /* Emerald 600 */
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header Section -->
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-3xl md:text-5xl font-bold text-gray-800">รายงานผลการทดสอบประสิทธิภาพเครื่องกำเนิดไฟฟ้า</h1>
+            <p class="mt-2 md:mt-4 text-lg text-gray-600">วิเคราะห์เปรียบเทียบผลกระทบของการบำรุงรักษาแผงระบายความร้อน</p>
+            <!-- New Download Report Button -->
+            <button id="download-report-btn" class="mt-6">ดาวน์โหลดรายงานเป็นภาพ</button>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-report-content" class="space-y-12">
+
+            <!-- Section 1: Generator 1 Case Study (Before vs. After Cleaning) -->
+            <section id="gen1-comparison" class="metric-card">
+                <div class="border-b border-gray-200 pb-4 mb-6">
+                    <h2 class="text-2xl md:text-3xl font-bold text-gray-800">กรณีศึกษา เครื่อง 1: ก่อน vs. หลัง ล้างแผงระบายความร้อน</h2>
+                    <p class="mt-2 text-gray-600">
+                        ส่วนนี้แสดงให้เห็นถึงการเปลี่ยนแปลงประสิทธิภาพของเครื่องกำเนิดไฟฟ้า 1 อย่างชัดเจนหลังจากทำความสะอาดแผงรังผึ้งระบายความร้อน
+                        คุณสามารถเลือกดูข้อมูลเปรียบเทียบในแต่ละหัวข้อได้โดยคลิกที่ปุ่มด้านล่าง เพื่อดูการเปลี่ยนแปลงของอุณหภูมิและแรงดันตามเวลา
+                    </p>
+                </div>
+
+                <!-- Metric Selection Buttons for Gen 1 Chart -->
+                <div class="flex flex-wrap justify-center gap-2 md:gap-4 mb-6">
+                    <button id="btn-coolant" class="px-4 py-2 rounded-full font-semibold transition">อุณหภูมิน้ำระบายความร้อน</button>
+                    <button id="btn-oil-temp" class="px-4 py-2 rounded-full font-semibold transition">อุณหภูมิน้ำมันเครื่อง</button>
+                    <button id="btn-oil-pressure" class="px-4 py-2 rounded-full font-semibold transition">แรงดันน้ำมันเครื่อง</button>
+                </div>
+
+                <!-- Chart for Generator 1 Data -->
+                <div class="chart-container mx-auto max-w-4xl">
+                    <canvas id="gen1Chart"></canvas>
+                </div>
+
+                <!-- Analysis Text based on selected metric -->
+                <div id="analysis-text" class="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h3 class="font-bold text-lg text-blue-800">บทวิเคราะห์</h3>
+                    <p class="text-blue-700 mt-1"></p>
+                </div>
+            </section>
+
+            <!-- Section 2: Airflow Comparison (Generator 1 After vs. Generator 2 Uncleaned) -->
+            <section id="airflow-comparison" class="metric-card">
+                <div class="border-b border-gray-200 pb-4 mb-6">
+                    <h2 class="text-2xl md:text-3xl font-bold text-gray-800">การวิเคราะห์แรงลม: ประสิทธิภาพการระบายอากาศ</h2>
+                    <p class="mt-2 text-gray-600">
+                        หนึ่งในตัวชี้วัดที่สำคัญที่สุดของประสิทธิภาพการระบายความร้อนคือแรงลมที่ไหลผ่านแผงรังผึ้ง
+                        กราฟนี้เปรียบเทียบแรงลมระหว่างเครื่อง 1 (หลังล้าง) กับเครื่อง 2 (ยังไม่ล้าง) เพื่อแสดงให้เห็นผลกระทบของการอุดตัน
+                    </p>
+                </div>
+                <div class="md:grid md:grid-cols-2 md:gap-8 items-center">
+                    <div class="chart-container mx-auto max-w-md">
+                        <canvas id="airflowChart"></canvas>
+                    </div>
+                    <div class="mt-6 md:mt-0">
+                        <h3 class="font-bold text-lg text-gray-800">ผลกระทบที่ชัดเจน</h3>
+                        <p class="text-gray-600 mt-2">
+                            หลังจากการล้างแผง, เครื่อง 1 มีแรงลมเพิ่มขึ้น**ประมาณ 2.9 เท่า** (26.2 km/h) เมื่อเทียบกับเครื่อง 2 (9 km/h)
+                            ซึ่งพิสูจน์ให้เห็นว่าการทำความสะอาดช่วยขจัดสิ่งอุดตันและฟื้นฟูการไหลเวียนของอากาศให้กลับมามีประสิทธิภาพสูงสุด ซึ่งเป็นปัจจัยสำคัญที่ทำให้ควบคุมอุณหภูมิได้ดีขึ้นอย่างมีนัยสำคัญ
+                        </p>
+                        <div class="mt-4 p-4 bg-green-50 rounded-lg text-green-800">
+                            <strong>ข้อสรุป:</strong> การบำรุงรักษาโดยตรงส่งผลให้การระบายความร้อนดีขึ้นอย่างมหาศาล
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Conclusion & Recommendations -->
+            <section id="conclusion" class="bg-gray-800 text-white rounded-lg p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-bold text-center">สรุปผลและข้อเสนอแนะ</h2>
+                <div class="mt-6 grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="font-semibold text-xl mb-2 text-blue-300">บทสรุปสำคัญ</h3>
+                        <p class="text-gray-300">
+                            ข้อมูลยืนยันอย่างชัดเจนว่าการทำความสะอาดแผงรังผึ้งระบายความร้อนช่วยแก้ไขปัญหาความร้อนสูงเกิน (Overheating) ของเครื่อง 1 ได้อย่างสมบูรณ์ ทำให้เครื่องทำงานได้อย่างมีเสถียรภาพและน่าเชื่อถือมากขึ้น
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xl mb-2 text-green-300">ข้อเสนอแนะ</h3>
+                        <ul class="list-disc list-inside space-y-2 text-gray-300">
+                            <li>ควรพิจารณาทำความสะอาดแผงรังผึ้งระบายความร้อนของ <strong>เครื่อง 2</strong> โดยเร็วที่สุด เพื่อปรับปรุงประสิทธิภาพการระบายความร้อนและป้องกันปัญหาที่อาจเกิดขึ้นในอนาคต</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        // Data for charts and analysis
+        const data = {
+            gen1_before: {
+                labels: [0, 5, 10, 15],
+                coolantTemp: [37, 82, 90, 100], /* Coolant temperature before cleaning */
+                oilTemp: [34, 78, 95, 107],     /* Oil temperature before cleaning */
+                oilPressure: [5.7, 5.0, 4.6, 4.6], /* Oil pressure before cleaning */
+            },
+            gen1_after: {
+                labels: [0, 5, 10, 15, 20, 25, 30],
+                coolantTemp: [35, 82, 83, 83, 83, 83, 83], /* Coolant temperature after cleaning */
+                oilTemp: [32, 81, 93, 95, 97, 97, 96],     /* Oil temperature after cleaning */
+                oilPressure: [5.6, 5.0, 4.9, 4.8, 4.8, 5.0, 5.0], /* Oil pressure after cleaning */
+            },
+            gen2: {
+                airflow: 9 /* Airflow for Generator 2 (uncleaned) */
+            },
+            gen1_cleaned_airflow: 26.2 /* Airflow for Generator 1 (after cleaning) */
+        };
+
+        // Analysis text content for different metrics
+        const analysisContent = {
+            coolant: {
+                title: "วิเคราะห์อุณหภูมิน้ำระบายความร้อน",
+                text: "ก่อนล้าง, อุณหภูมิพุ่งสูงถึง 100°C ใน 15 นาที ทำให้เครื่องหยุดทำงาน หลังล้าง, อุณหภูมิคงที่อยู่ที่ประมาณ 83°C แสดงถึงการควบคุมอุณหภูมิที่ดีเยี่ยม"
+            },
+            oilTemp: {
+                title: "วิเคราะห์อุณหภูมิน้ำมันเครื่อง",
+                text: "ก่อนล้าง, อุณหภูมิน้ำมันเครื่องสูงถึง 107°C ซึ่งเป็นอันตรายต่อเครื่องยนต์ หลังล้าง, อุณหภูมิเพิ่มขึ้นอย่างช้าๆ และอยู่ในระดับที่ปลอดภัยตลอดการทดสอบ"
+            },
+            oilPressure: {
+                title: "วิเคราะห์แรงดันน้ำมันเครื่อง",
+                text: "หลังล้าง, แรงดันน้ำมันเครื่องมีความคงที่และสม่ำเสมอมากขึ้น ซึ่งบ่งชี้ถึงสภาวะการทำงานที่ดีและมีเสถียรภาพของเครื่องยนต์"
+            }
+        };
+
+        let gen1Chart; // Variable to hold the Chart.js instance for Generator 1
+        let airflowChart; // Variable to hold the Chart.js instance for Airflow comparison
+
+        /**
+         * Initializes and configures the Chart.js line chart for Generator 1.
+         * This chart compares various metrics (coolant temp, oil temp, oil pressure)
+         * before and after cleaning.
+         */
+        const setupGen1Chart = () => {
+            const ctx = document.getElementById('gen1Chart').getContext('2d');
+            gen1Chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [], /* Labels (time) will be updated dynamically */
+                    datasets: [{
+                        label: 'ก่อนล้าง', /* Label for "before cleaning" data */
+                        data: [], /* Data will be updated dynamically */
+                        borderColor: '#F59E0B', /* Amber 500 */
+                        backgroundColor: '#FDE68A', /* Amber 200 (for point background if needed, but primarily line) */
+                        borderWidth: 3,
+                        tension: 0.3, /* Smooth curves */
+                        pointBackgroundColor: '#F59E0B',
+                        pointRadius: 5
+                    }, {
+                        label: 'หลังล้าง', /* Label for "after cleaning" data */
+                        data: [], /* Data will be updated dynamically */
+                        borderColor: '#3B82F6', /* Blue 500 */
+                        backgroundColor: '#93C5FD', /* Blue 300 */
+                        borderWidth: 3,
+                        tension: 0.3,
+                        pointBackgroundColor: '#3B82F6',
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true, /* Chart resizes with parent container */
+                    maintainAspectRatio: false, /* Allows independent width and height sizing */
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'การเปรียบเทียบประสิทธิภาพเครื่อง 1', /* Chart title */
+                            font: { size: 18, family: 'Sarabun' },
+                            padding: { top: 10, bottom: 20 }
+                        },
+                        tooltip: {
+                            mode: 'index', /* Shows all datasets at a given x-value */
+                            intersect: false, /* Tooltip activates anywhere on the line */
+                        },
+                        legend: {
+                            position: 'top', /* Legend at the top of the chart */
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'เวลา (นาที)', /* X-axis label */
+                                font: { size: 14, family: 'Sarabun' }
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'ค่าที่วัดได้', /* Y-axis label (will be updated dynamically) */
+                                font: { size: 14, family: 'Sarabun' }
+                            },
+                            beginAtZero: false /* Y-axis does not necessarily start at zero */
+                        }
+                    }
+                }
+            });
+        };
+
+        /**
+         * Initializes and configures the Chart.js bar chart for Airflow comparison.
+         * This chart compares the airflow of Generator 1 (after cleaning) and Generator 2 (uncleaned).
+         */
+        const setupAirflowChart = () => {
+            const ctx = document.getElementById('airflowChart').getContext('2d');
+            airflowChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['เครื่อง 1 (หลังล้าง)', 'เครื่อง 2 (ยังไม่ล้าง)'], /* Bar labels */
+                    datasets: [{
+                        label: 'แรงลมหลังแผงระบายความร้อน (km/h)', /* Dataset label */
+                        data: [data.gen1_cleaned_airflow, data.gen2.airflow], /* Data values */
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.7)', /* Blue 500 with transparency */
+                            'rgba(245, 158, 11, 0.7)' /* Amber 500 with transparency */
+                        ],
+                        borderColor: [
+                            'rgb(59, 130, 246)', /* Blue 500 */
+                            'rgb(245, 158, 11)' /* Amber 500 */
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }, /* No legend needed for single dataset bar chart */
+                        title: {
+                            display: true,
+                            text: 'เปรียบเทียบแรงลม (km/h)', /* Chart title */
+                            font: { size: 16, family: 'Sarabun' },
+                            padding: { bottom: 15 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true, /* Y-axis starts at zero for bar chart */
+                            title: {
+                                display: true,
+                                text: 'ความเร็วลม (km/h)', /* Y-axis label */
+                                font: { size: 14, family: 'Sarabun' }
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        /**
+         * Updates the analysis text section based on the selected metric.
+         * @param {string} metricKey - Key corresponding to the analysisContent object (e.g., 'coolant', 'oilTemp').
+         */
+        const updateAnalysisText = (metricKey) => {
+            const analysisTitle = document.querySelector('#analysis-text h3');
+            const analysisP = document.querySelector('#analysis-text p');
+            analysisTitle.textContent = analysisContent[metricKey].title;
+            analysisP.textContent = analysisContent[metricKey].text;
+        };
+
+        /**
+         * Updates the Generator 1 chart with new data based on the selected metric.
+         * @param {string} metric - The data key to display (e.g., 'coolantTemp', 'oilTemp', 'oilPressure').
+         */
+        const updateGen1Chart = (metric) => {
+            const beforeData = data.gen1_before[metric];
+            const afterData = data.gen1_after[metric];
+
+            // Update chart labels (time) - using the longer 'after' labels for consistency
+            gen1Chart.data.labels = data.gen1_after.labels;
+            // Update data for "before" dataset
+            gen1Chart.data.datasets[0].data = beforeData;
+            // Update data for "after" dataset
+            gen1Chart.data.datasets[1].data = afterData;
+
+            let yAxisLabel = '';
+            let metricKey = '';
+            if (metric === 'coolantTemp' || metric === 'oilTemp') {
+                yAxisLabel = 'อุณหภูมิ (°C)'; /* Y-axis label for temperature metrics */
+                metricKey = metric === 'coolantTemp' ? 'coolant' : 'oilTemp';
+            } else if (metric === 'oilPressure') {
+                yAxisLabel = 'แรงดัน (psi)'; /* Y-axis label for pressure metric */
+                metricKey = 'oilPressure';
+            }
+
+            // Update Y-axis title and analysis text
+            gen1Chart.options.scales.y.title.text = yAxisLabel;
+            updateAnalysisText(metricKey);
+            gen1Chart.update(); // Redraw the chart
+        };
+
+        /**
+         * Sets the active state for the metric selection buttons.
+         * @param {string} activeBtnId - The ID of the button to set as active.
+         */
+        const setActiveButton = (activeBtnId) => {
+            const buttons = document.querySelectorAll('#gen1-comparison button');
+            buttons.forEach(btn => {
+                if (btn.id === activeBtnId) {
+                    btn.classList.add('btn-active');
+                    btn.classList.remove('btn-inactive');
+                } else {
+                    btn.classList.remove('btn-active');
+                    btn.classList.add('btn-inactive');
+                }
+            });
+        };
+
+        // Event listener for when the window finishes loading
+        window.onload = () => {
+            // Initialize both charts
+            setupGen1Chart();
+            setupAirflowChart();
+
+            // Get references to the metric buttons
+            const btnCoolant = document.getElementById('btn-coolant');
+            const btnOilTemp = document.getElementById('btn-oil-temp');
+            const btnOilPressure = document.getElementById('btn-oil-pressure');
+
+            // Add click event listeners to metric buttons
+            btnCoolant.addEventListener('click', () => {
+                updateGen1Chart('coolantTemp');
+                setActiveButton('btn-coolant');
+            });
+            btnOilTemp.addEventListener('click', () => {
+                updateGen1Chart('oilTemp');
+                setActiveButton('btn-oil-temp');
+            });
+            btnOilPressure.addEventListener('click', () => {
+                updateGen1Chart('oilPressure');
+                setActiveButton('btn-oil-pressure');
+            });
+
+            // Trigger initial load with coolant temperature data
+            btnCoolant.click();
+
+            // Handle the download button click
+            const downloadButton = document.getElementById('download-report-btn');
+            if (downloadButton) {
+                downloadButton.addEventListener('click', () => {
+                    const mainContent = document.getElementById('main-report-content'); // Target the main content area
+                    if (mainContent) {
+                        // Use html2canvas to capture the content of the main section
+                        html2canvas(mainContent, {
+                            scale: 2, // Increase scale for better resolution
+                            useCORS: true, // Needed if there are external resources
+                            backgroundColor: '#F9FAFB' // Match body background color
+                        }).then(canvas => {
+                            // Create a temporary link element
+                            const link = document.createElement('a');
+                            link.download = 'รายงานประสิทธิภาพเครื่องกำเนิดไฟฟ้า.png'; // Set filename
+                            link.href = canvas.toDataURL('image/png'); // Convert canvas to PNG data URL
+                            document.body.appendChild(link); // Append to body (required for Firefox)
+                            link.click(); // Programmatically click the link to trigger download
+                            document.body.removeChild(link); // Remove the link after download
+                        }).catch(error => {
+                            console.error('Error generating image:', error);
+                            // You might want to display a user-friendly message here, e.g., using a custom modal
+                        });
+                    } else {
+                        console.error('Main content element not found for image capture.');
+                    }
+                });
+            }
+        };
+    </script>
+</body>
+</html>
