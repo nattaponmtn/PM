@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Inspection Dashboard (URL Embedded)</title>
+    <title>Real-Time Multi-Report Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -17,11 +17,6 @@
             background-color: white;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            transition: all 0.3s ease-in-out;
-        }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
         }
         .icon-bg {
             padding: 0.75rem;
@@ -42,41 +37,227 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .tab {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        .tab.active {
+            color: #2563EB; /* blue-600 */
+            border-bottom-color: #2563EB;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body class="text-gray-800">
 
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <header class="mb-6">
-            <h1 class="text-3xl font-bold text-gray-900">Dashboard สรุปผลการตรวจสอบ</h1>
-            <p class="text-gray-600 mt-1">ข้อมูลล่าสุดจาก Google Form Responses (อัปเดตทุก 1 นาที)</p>
+            <h1 class="text-3xl font-bold text-gray-900">Dashboard สรุปผลการบำรุงรักษา</h1>
+            <p class="text-gray-600 mt-1">ข้อมูลล่าสุดจาก Google Sheets (อัปเดตทุก 1 นาที)</p>
         </header>
+
+        <!-- Tabs Navigation -->
+        <div class="border-b border-gray-200 mb-6">
+            <nav id="tabs-container" class="flex -mb-px" aria-label="Tabs">
+                <!-- Tabs will be generated here by JavaScript -->
+            </nav>
+        </div>
 
         <!-- Loading State -->
         <div id="loading-section" class="flex flex-col items-center justify-center card p-10">
             <div class="loader"></div>
-            <p class="mt-4 text-lg font-semibold text-gray-700">กำลังโหลดข้อมูลจาก Google Sheet...</p>
+            <p class="mt-4 text-lg font-semibold text-gray-700">กำลังโหลดข้อมูลทั้งหมด...</p>
         </div>
 
-        <!-- Dashboard Content - Hidden by default -->
-        <div id="dashboard-content" class="hidden">
-            <!-- Filters and Last Updated -->
-            <div class="card p-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div class="flex flex-wrap gap-4">
-                    <select id="company-filter" class="border border-gray-300 rounded-lg p-2"></select>
-                    <select id="location-filter" class="border border-gray-300 rounded-lg p-2"></select>
-                    <button id="reset-filter-btn" class="bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300">ล้างตัวกรอง</button>
-                </div>
-                <div class="text-sm text-gray-500">
-                    อัปเดตล่าสุด: <span id="last-updated" class="font-bold">-</span>
-                </div>
-            </div>
+        <!-- Main Content Area -->
+        <div id="main-content-area">
+             <!-- Tab Content will be generated here -->
+        </div>
+        
+        <div id="message-center" class="text-center p-4"></div>
 
-            <!-- Main Grid -->
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const REPORTS = {
+            inspection: {
+                name: 'CTC-ตรวจสอบ Cooling Pad',
+                url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSPZCqpL2rlM0RNSH5cFm2IK_yCNdSqgPYKvjWQ1gS4okor_r3Rcceancu9PBpoEjz1l5EtYDwgPq1n/pub?gid=460254664&single=true&output=csv'
+            },
+            waterFilter: {
+                name: 'SA-ล้างกรองน้ำ',
+                url: 'YOUR_WATER_FILTER_CSV_LINK_HERE' // <--- This link is still a placeholder
+            },
+            generator: {
+                name: 'SA-เครื่องกำเนิดไฟฟ้า',
+                url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvrflx0J__KTa3IcaYWFQ4Ml_lWZGKLj67blsfxyTTZGsQJx8UF5qu41C2_clPseyoR2i8UZvMaNtu/pub?output=csv'
+            }
+        };
+
+        // --- Global State ---
+        let allData = {};
+        let refreshIntervalId = null;
+
+        // --- DOM Elements ---
+        const loadingSection = document.getElementById('loading-section');
+        const tabsContainer = document.getElementById('tabs-container');
+        const mainContentArea = document.getElementById('main-content-area');
+        const messageCenter = document.getElementById('message-center');
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', initializeDashboard);
+
+        function initializeDashboard() {
+            generateTabs();
+            loadAllData();
+            if (refreshIntervalId) clearInterval(refreshIntervalId);
+            refreshIntervalId = setInterval(loadAllData, 60000);
+        }
+
+        function generateTabs() {
+            tabsContainer.innerHTML = '';
+            mainContentArea.innerHTML = '';
+            Object.keys(REPORTS).forEach((key, index) => {
+                const report = REPORTS[key];
+                const tab = document.createElement('button');
+                tab.className = `tab ${index === 0 ? 'active' : ''}`;
+                tab.dataset.tab = key;
+                tab.textContent = report.name;
+                tab.onclick = () => switchTab(key);
+                tabsContainer.appendChild(tab);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.id = `content-${key}`;
+                contentDiv.className = `tab-content ${index === 0 ? 'active' : ''}`;
+                mainContentArea.appendChild(contentDiv);
+            });
+        }
+
+        function switchTab(targetKey) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${targetKey}"]`).classList.add('active');
+            
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`content-${targetKey}`).classList.add('active');
+        }
+
+        async function loadAllData() {
+            loadingSection.style.display = 'flex';
+            
+            const dataPromises = Object.keys(REPORTS).map(async (key) => {
+                const report = REPORTS[key];
+                if (report.url.startsWith('YOUR_')) {
+                    return { key, data: null, error: 'URL not configured' };
+                }
+                try {
+                    const fetchUrl = `${report.url}&t=${new Date().getTime()}`;
+                    const response = await fetch(fetchUrl);
+                    if (!response.ok) throw new Error(`Network error for ${report.name}`);
+                    
+                    const blob = await response.blob();
+                    const csvText = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = e => reject(e);
+                        reader.readAsText(blob, 'UTF-8');
+                    });
+                    
+                    const parsedData = parseCSV(csvText);
+                    allData[key] = parsedData;
+                    return { key, data: parsedData };
+                } catch (error) {
+                    console.error(`Failed to load data for ${report.name}:`, error);
+                    return { key, data: null, error: error.message };
+                }
+            });
+
+            await Promise.all(dataPromises);
+
+            loadingSection.style.display = 'none';
+            renderAllReports();
+        }
+
+        function renderAllReports() {
+             Object.keys(REPORTS).forEach(key => {
+                const reportData = allData[key];
+                const container = document.getElementById(`content-${key}`);
+                if (!reportData) {
+                    container.innerHTML = `<div class="card p-6 text-center text-gray-500">
+                        <p class="font-bold">ยังไม่ได้ตั้งค่ารายงาน</p>
+                        <p>กรุณาใส่ลิงก์ CSV ในโค้ดสำหรับรายงาน "${REPORTS[key].name}"</p>
+                    </div>`;
+                    return;
+                }
+                
+                // --- Specific rendering logic for each report type ---
+                if (key === 'inspection') {
+                    renderInspectionReport(container, reportData);
+                } else if (key === 'waterFilter') {
+                    // Placeholder for water filter report rendering
+                    container.innerHTML = `<div class="card p-6 text-center">
+                        <h2 class="text-xl font-bold">รายงานล้างกรองน้ำ</h2>
+                        <p>${reportData.rows.length} records loaded. Rendering logic to be implemented.</p>
+                    </div>`;
+                } else if (key === 'generator') {
+                    renderGeneratorReport(container, reportData);
+                }
+            });
+            // This is a bit awkward now, maybe move it inside each render function
+            // document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('th-TH');
+        }
+        
+        function parseCSV(text) {
+            const normalizedText = text.trim().replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+            const lines = normalizedText.split('\n');
+            if (lines.length < 1) return { headers: [], rows: [] }; // Can be just headers
+            
+            const rawHeaders = lines[0].split(',');
+            const headers = [];
+            let headerPart = '';
+            for (const part of rawHeaders) {
+                headerPart += part;
+                if (headerPart.includes('[') && !headerPart.includes(']')) {
+                    headerPart += ','; 
+                } else {
+                    headers.push(headerPart.trim().replace(/"/g, ''));
+                    headerPart = '';
+                }
+            }
+            
+            const rows = lines.slice(1).filter(line => line.trim() !== '').map(line => {
+                const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/g);
+                const obj = {};
+                headers.forEach((header, i) => {
+                    let value = (values[i] || '').trim();
+                    if (value.startsWith('"') && value.endsWith('"')) {
+                        value = value.substring(1, value.length - 1).replace(/""/g, '"');
+                    }
+                    obj[header] = value;
+                });
+                return obj;
+            });
+            return { headers, rows };
+        }
+
+        // --- ============================================= ---
+        // ---          INSPECTION REPORT FUNCTIONS          ---
+        // --- ============================================= ---
+        function renderInspectionReport(container, reportData) {
+            container.innerHTML = `
+            <div class="flex justify-end text-sm text-gray-500 mb-4">
+                อัปเดตล่าสุด: <span id="last-updated-inspection" class="font-bold ml-1">-</span>
+            </div>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Left Column: Summary & Pie Chart -->
                 <div class="lg:col-span-1 flex flex-col gap-6">
-                    <!-- Summary Cards -->
                     <div class="card p-6 flex items-center gap-4">
                         <div class="icon-bg bg-blue-100 text-blue-600"><i class="ph-bold ph-list-checks text-2xl"></i></div>
                         <div>
@@ -98,333 +279,324 @@
                             <p id="abnormal-inspections" class="text-4xl font-bold text-red-600">0</p>
                         </div>
                     </div>
-                    <!-- Pie Chart -->
                     <div class="card p-6">
                         <h3 class="text-xl font-bold mb-4">สัดส่วนผลการตรวจสอบ</h3>
-                        <div class="relative h-64"><canvas id="summary-pie-chart"></canvas></div>
+                        <div class="relative h-64"><canvas id="summary-pie-chart-inspection"></canvas></div>
                     </div>
                 </div>
-
-                <!-- Right Column: Abnormal Alerts -->
                 <div class="lg:col-span-2 card p-6">
                     <h3 class="text-xl font-bold mb-4 text-red-600 flex items-center gap-2"><i class="ph-bold ph-bell-ringing"></i>รายการที่ต้องดำเนินการด่วน</h3>
-                    <div id="abnormal-alerts-container" class="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
-                        <!-- Abnormal alert cards will be inserted here -->
-                    </div>
+                    <div id="abnormal-alerts-container-inspection" class="space-y-4 max-h-[80vh] overflow-y-auto pr-2"></div>
                 </div>
             </div>
-            
-            <!-- Issue Breakdown Chart -->
-             <div class="card p-6 mt-6">
+            <div class="card p-6 mt-6">
                 <h3 class="text-xl font-bold mb-4">ประเภทปัญหาที่พบ</h3>
-                <div class="relative h-96"><canvas id="issue-breakdown-chart"></canvas></div>
+                <div class="relative h-96"><canvas id="issue-breakdown-chart-inspection"></canvas></div>
             </div>
-
-        </div>
-        
-        <div id="message-center" class="text-center p-4"></div>
-
-    </div>
-
-    <script>
-        // --- Global State ---
-        let originalData = [];
-        let originalHeaders = []; // Store the definitive headers
-        let summaryPieChart = null;
-        let issueBreakdownChart = null;
-        let refreshIntervalId = null;
-        
-        // --- The Google Sheet URL is now embedded directly in the code ---
-        const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSPZCqpL2rlM0RNSH5cFm2IK_yCNdSqgPYKvjWQ1gS4okor_r3Rcceancu9PBpoEjz1l5EtYDwgPq1n/pub?gid=460254664&single=true&output=csv';
-
-        // --- DOM Elements ---
-        const loadingSection = document.getElementById('loading-section');
-        const dashboardContent = document.getElementById('dashboard-content');
-        const messageCenter = document.getElementById('message-center');
-        const companyFilter = document.getElementById('company-filter');
-        const locationFilter = document.getElementById('location-filter');
-        const resetFilterBtn = document.getElementById('reset-filter-btn');
-
-        // --- Event Listeners ---
-        document.addEventListener('DOMContentLoaded', () => {
-             loadAndProcessData(GOOGLE_SHEET_URL);
-        });
-        companyFilter.addEventListener('change', applyFilters);
-        locationFilter.addEventListener('change', applyFilters);
-        resetFilterBtn.addEventListener('click', () => {
-            companyFilter.value = 'all';
-            locationFilter.value = 'all';
-            applyFilters();
-        });
-
-        async function loadAndProcessData(url) {
-            try {
-                const fetchUrl = `${url}&t=${new Date().getTime()}`;
-                const response = await fetch(fetchUrl);
-                if (!response.ok) throw new Error(`Network response was not ok. Status: ${response.status}`);
-                
-                const blob = await response.blob();
-                const csvText = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsText(blob, 'UTF-8');
-                });
-
-                const parsedResult = parseCSV(csvText);
-                originalData = parsedResult.rows;
-                originalHeaders = parsedResult.headers; // Store the headers
-                
-                populateFilters();
-                applyFilters();
-
-                loadingSection.classList.add('hidden');
-                dashboardContent.classList.remove('hidden');
-                messageCenter.innerHTML = '';
-
-                if (refreshIntervalId) clearInterval(refreshIntervalId);
-                refreshIntervalId = setInterval(() => loadAndProcessData(url), 60000);
-
-            } catch (error) {
-                console.error('Error loading or processing data:', error);
-                loadingSection.classList.add('hidden');
-                showMessage('เกิดข้อผิดพลาดในการโหลดข้อมูล โปรดตรวจสอบว่าลิงก์ Google Sheet ถูกต้องและยังเผยแพร่อยู่', 'error');
-            }
-        }
-
-        function parseCSV(text) {
-            const normalizedText = text.trim().replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
-            const lines = normalizedText.split('\n');
-            if (lines.length < 2) return { headers: [], rows: [] };
+            `;
             
-            // --- FINAL FIX: Robustly parse the header to handle internal commas ---
-            const rawHeaders = lines[0].split(',');
-            const headers = [];
-            let headerPart = '';
-            for (const part of rawHeaders) {
-                headerPart += part;
-                if (headerPart.includes('[') && !headerPart.includes(']')) {
-                    headerPart += ','; 
-                } else {
-                    headers.push(headerPart.trim());
-                    headerPart = '';
-                }
-            }
-            // --- END OF FIX ---
-            
-            const rows = lines.slice(1).filter(line => line.trim() !== '').map(line => {
-                const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/g);
-                const obj = {};
-                headers.forEach((header, i) => {
-                    let value = (values[i] || '').trim();
-                    if (value.startsWith('"') && value.endsWith('"')) {
-                        value = value.substring(1, value.length - 1).replace(/""/g, '"');
-                    }
-                    obj[header] = value;
-                });
-                return obj;
-            });
-            return { headers, rows };
-        }
-        
-        function normalizeString(str) {
-            if (typeof str !== 'string') return '';
-            return str.replace(/\s/g, '');
+            analyzeAndDisplayInspectionData(reportData);
         }
 
-        function populateFilters() {
-            const companyHeader = originalHeaders.find(h => h.includes('บริษัท'));
-            const locationHeader = originalHeaders.find(h => h.includes('สถานที่'));
-            if (!companyHeader || !locationHeader) return;
-
-            const companies = ['all', ...new Set(originalData.map(row => row[companyHeader]).filter(Boolean))];
-            const locations = ['all', ...new Set(originalData.map(row => row[locationHeader]).filter(Boolean))];
-
-            companyFilter.innerHTML = companies.map(c => `<option value="${c}">${c === 'all' ? 'ทุกบริษัท' : c}</option>`).join('');
-            locationFilter.innerHTML = locations.map(l => `<option value="${l}">${l === 'all' ? 'ทุกสถานที่' : l}</option>`).join('');
-        }
-
-        function applyFilters() {
-            const companyHeader = originalHeaders.find(h => h.includes('บริษัท'));
-            const locationHeader = originalHeaders.find(h => h.includes('สถานที่'));
-            if (!companyHeader || !locationHeader) {
-                analyzeAndDisplayData(originalData);
-                return;
-            };
-
-            const selectedCompany = companyFilter.value;
-            const selectedLocation = locationFilter.value;
-
-            let filteredData = originalData;
-            if (selectedCompany !== 'all') {
-                filteredData = filteredData.filter(row => row[companyHeader] === selectedCompany);
-            }
-            if (selectedLocation !== 'all') {
-                filteredData = filteredData.filter(row => row[locationHeader] === selectedLocation);
-            }
-            analyzeAndDisplayData(filteredData);
-        }
-        
-        function analyzeAndDisplayData(data) {
-            if (!data || data.length === 0) return;
-
-            const issueColumns = originalHeaders.filter(h => h.includes('รายการตรวจสอบ / กิจกรรม (Task)'));
-            const summaryHeaderKey = originalHeaders.find(h => h.includes('สรุปผลการตรวจสอบ'));
-            const noteHeaderKey = originalHeaders.find(h => h.includes('หมายเหตุเพิ่มเติม'));
+        function analyzeAndDisplayInspectionData({ headers, rows }) {
+            document.getElementById('last-updated-inspection').textContent = new Date().toLocaleTimeString('th-TH');
+            const issueColumns = headers.filter(h => h.includes('รายการตรวจสอบ / กิจกรรม (Task)'));
+            const summaryHeaderKey = headers[headers.length - 2];
+            const noteHeaderKey = headers[headers.length - 1];
 
             const abnormalSummaryKeyword = 'พบความผิดปกติ';
             const abnormalTaskKeyword = 'ผิดปกติ';
 
-            const abnormalInspectionsData = data.filter(row => {
-                const summaryIsAbnormal = summaryHeaderKey && row[summaryHeaderKey] && normalizeString(row[summaryHeaderKey]).includes(normalizeString(abnormalSummaryKeyword));
-                const anyTaskIsAbnormal = issueColumns.some(col => row[col] && normalizeString(row[col]).includes(normalizeString(abnormalTaskKeyword)));
+            const abnormalInspectionsData = rows.filter(row => {
+                const summaryIsAbnormal = summaryHeaderKey && row[summaryHeaderKey] && row[summaryHeaderKey].includes(abnormalSummaryKeyword);
+                const anyTaskIsAbnormal = issueColumns.some(col => row[col] && row[col].includes(abnormalTaskKeyword));
                 return summaryIsAbnormal || anyTaskIsAbnormal;
             });
             
-            const totalInspections = data.length;
+            const totalInspections = rows.length;
             const abnormalCount = abnormalInspectionsData.length;
             const normalCount = totalInspections - abnormalCount;
 
             document.getElementById('total-inspections').textContent = totalInspections;
             document.getElementById('normal-inspections').textContent = normalCount;
             document.getElementById('abnormal-inspections').textContent = abnormalCount;
-            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('th-TH');
-
+            
             const issueCounts = {};
             issueColumns.forEach(col => {
                 const cleanNameMatch = col.match(/\[(.*?)\]/);
                 if (cleanNameMatch?.[1]) issueCounts[cleanNameMatch[1]] = 0;
             });
 
-            const normalizedAbnormalTask = normalizeString(abnormalTaskKeyword);
             abnormalInspectionsData.forEach(row => {
                 issueColumns.forEach(col => {
-                    if (row[col] && normalizeString(row[col]).includes(normalizedAbnormalTask)) {
+                    if (row[col] && row[col].includes(abnormalTaskKeyword)) {
                         const cleanNameMatch = col.match(/\[(.*?)\]/);
                         if (cleanNameMatch?.[1]) issueCounts[cleanNameMatch[1]]++;
                     }
                 });
             });
 
-            updateSummaryPieChart(normalCount, abnormalCount);
-            updateIssueBreakdownChart(issueCounts);
-            updateAbnormalAlerts(abnormalInspectionsData, issueColumns, noteHeaderKey);
+            updateInspectionCharts(normalCount, abnormalCount, issueCounts);
+            updateInspectionAlerts(abnormalInspectionsData, issueColumns, { headers, summaryHeaderKey, noteHeaderKey });
         }
-
-        function updateSummaryPieChart(normal, abnormal) {
-            const ctx = document.getElementById('summary-pie-chart').getContext('2d');
-            const chartData = {
+        
+        let inspectionPieChart, inspectionBarChart;
+        function updateInspectionCharts(normal, abnormal, issueCounts) {
+            const pieCtx = document.getElementById('summary-pie-chart-inspection').getContext('2d');
+            if (inspectionPieChart) inspectionPieChart.destroy();
+            inspectionPieChart = new Chart(pieCtx, { type: 'doughnut', data: {
                 labels: ['ปกติทั้งหมด', 'พบความผิดปกติ'],
-                datasets: [{
-                    data: [normal, abnormal],
-                    backgroundColor: ['#10B981', '#EF4444'],
-                    borderColor: '#f0f2f5',
-                    borderWidth: 4,
-                }]
-            };
-            if (summaryPieChart) {
-                summaryPieChart.data = chartData;
-                summaryPieChart.update();
-            } else {
-                summaryPieChart = new Chart(ctx, { type: 'doughnut', data: chartData, options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } } });
-            }
-        }
+                datasets: [{ data: [normal, abnormal], backgroundColor: ['#10B981', '#EF4444'], borderColor: '#f0f2f5', borderWidth: 4 }]
+            }, options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } } });
 
-        function updateIssueBreakdownChart(issueCounts) {
-            const ctx = document.getElementById('issue-breakdown-chart').getContext('2d');
+            const barCtx = document.getElementById('issue-breakdown-chart-inspection').getContext('2d');
             const filteredIssues = Object.entries(issueCounts).filter(([_, count]) => count > 0);
-            const labels = filteredIssues.map(([label, _]) => label);
-            const dataValues = filteredIssues.map(([_, count]) => count);
-            
-            const chartData = {
-                labels,
+            if (inspectionBarChart) inspectionBarChart.destroy();
+            inspectionBarChart = new Chart(barCtx, { type: 'bar', data: {
+                labels: filteredIssues.map(([label, _]) => label),
                 datasets: [{
                     label: 'จำนวนครั้งที่พบปัญหา',
-                    data: dataValues,
+                    data: filteredIssues.map(([_, count]) => count),
                     backgroundColor: 'rgba(239, 68, 68, 0.2)',
                     borderColor: 'rgba(220, 38, 38, 1)',
                     borderWidth: 2,
                     borderRadius: 5
                 }]
-            };
-
-            if (issueBreakdownChart) {
-                issueBreakdownChart.data = chartData;
-                issueBreakdownChart.update();
-            } else {
-                issueBreakdownChart = new Chart(ctx, { type: 'bar', data: chartData, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } } });
-            }
+            }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } } });
         }
         
-        function updateAbnormalAlerts(abnormalData, issueColumns, noteHeaderKey) {
-            const container = document.getElementById('abnormal-alerts-container');
+        function updateInspectionAlerts(abnormalData, issueColumns, keys) {
+            const container = document.getElementById('abnormal-alerts-container-inspection');
             container.innerHTML = '';
 
             if (abnormalData.length === 0) {
-                container.innerHTML = `<div class="text-center p-10 text-gray-500">
-                    <i class="ph-bold ph-check-circle text-5xl text-green-500"></i>
-                    <p class="mt-4 font-semibold">ยอดเยี่ยม! ไม่พบรายการที่ผิดปกติ</p>
-                </div>`;
+                container.innerHTML = `<div class="text-center p-10 text-gray-500"><i class="ph-bold ph-check-circle text-5xl text-green-500"></i><p class="mt-4 font-semibold">ยอดเยี่ยม! ไม่พบรายการที่ผิดปกติ</p></div>`;
                 return;
             }
 
-            const sortedData = [...abnormalData].sort((a, b) => new Date(b['Timestamp']) - new Date(a['Timestamp']));
-            const normalizedAbnormalTask = normalizeString('ผิดปกติ');
-            
-            const companyHeader = originalHeaders.find(h => h.includes('บริษัท'));
-            const locationHeader = originalHeaders.find(h => h.includes('สถานที่'));
-            const dateHeader = originalHeaders.find(h => h.includes('วันที่ตรวจสอบ'));
-            const timestampHeader = originalHeaders.find(h => h.includes('Timestamp'));
+            const companyHeader = keys.headers.find(h => h.includes('บริษัท'));
+            const locationHeader = keys.headers.find(h => h.includes('สถานที่'));
+            const dateHeader = keys.headers.find(h => h.includes('วันที่ตรวจสอบ'));
+            const timestampHeader = keys.headers.find(h => h.includes('Timestamp'));
 
-
-            sortedData.forEach(row => {
+            abnormalData.sort((a, b) => new Date(b[timestampHeader]) - new Date(a[timestampHeader])).forEach(row => {
                 const card = document.createElement('div');
                 card.className = 'border border-red-200 bg-red-50 p-4 rounded-lg';
-
+                
                 const failedChecks = issueColumns
-                    .filter(col => row[col] && normalizeString(row[col]).includes(normalizedAbnormalTask))
+                    .filter(col => row[col] && row[col].includes('ผิดปกติ'))
                     .map(col => col.match(/\[(.*?)\]/)?.[1] || col);
 
-                let failedChecksHtml = '';
-                if (failedChecks.length > 0) {
-                    failedChecksHtml = `
-                        <div class="mt-2">
-                            <p class="font-semibold text-gray-800 text-sm">รายการที่พบปัญหา:</p>
-                            <ul class="list-disc list-inside text-sm text-yellow-800 space-y-1 mt-1">
-                                ${failedChecks.map(check => `<li>${check}</li>`).join('')}
-                            </ul>
-                        </div>
-                    `;
-                }
-                
-                const noteText = noteHeaderKey ? row[noteHeaderKey] : '';
+                const noteText = row[keys.noteHeaderKey] || `<i>(ไม่มีหมายเหตุ)</i>`;
 
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
-                            <p class="font-bold text-lg text-red-800">${locationHeader ? row[locationHeader] : 'N/A'}</p>
-                            <p class="text-sm text-gray-600">${companyHeader ? row[companyHeader] : 'N/A'}</p>
+                            <p class="font-bold text-lg text-red-800">${row[locationHeader]}</p>
+                            <p class="text-sm text-gray-600">${row[companyHeader]}</p>
                         </div>
                         <div class="text-right text-sm text-gray-500">
-                            <p>${dateHeader ? row[dateHeader] : 'N/A'}</p>
-                            <p>${timestampHeader ? new Date(row[timestampHeader]).toLocaleTimeString('th-TH') : ''}</p>
+                            <p>${row[dateHeader]}</p>
+                            <p>${new Date(row[timestampHeader]).toLocaleTimeString('th-TH')}</p>
                         </div>
                     </div>
-                    ${failedChecksHtml}
+                    ${failedChecks.length > 0 ? `
+                    <div class="mt-2">
+                        <p class="font-semibold text-gray-800 text-sm">รายการที่พบปัญหา:</p>
+                        <ul class="list-disc list-inside text-sm text-yellow-800 space-y-1 mt-1">
+                            ${failedChecks.map(check => `<li>${check}</li>`).join('')}
+                        </ul>
+                    </div>` : ''}
                     <div class="mt-4 pt-4 border-t border-red-200">
                         <p class="font-semibold text-gray-800">หมายเหตุเพิ่มเติม:</p>
-                        <p class="text-red-700 bg-red-100 p-2 rounded mt-1">${noteText || '<i>(ไม่มีหมายเหตุ)</i>'}</p>
-                    </div>
-                `;
+                        <p class="text-red-700 bg-red-100 p-2 rounded mt-1">${noteText}</p>
+                    </div>`;
                 container.appendChild(card);
             });
         }
 
-        function showMessage(text, type = 'info') {
-            let colorClass = 'bg-blue-100 text-blue-800';
-            if (type === 'error') colorClass = 'bg-red-100 text-red-800';
-            messageCenter.innerHTML = `<div class="card p-4 ${colorClass}">${text}</div>`;
+        // --- ============================================= ---
+        // ---          GENERATOR REPORT FUNCTIONS           ---
+        // --- ============================================= ---
+        function renderGeneratorReport(container, reportData) {
+            container.innerHTML = `
+            <div class="flex justify-end text-sm text-gray-500 mb-4">
+                อัปเดตล่าสุด: <span id="last-updated-generator" class="font-bold ml-1">-</span>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-1 flex flex-col gap-6">
+                    <div class="card p-6 flex items-center gap-4">
+                        <div class="icon-bg bg-blue-100 text-blue-600"><i class="ph-bold ph-list-checks text-2xl"></i></div>
+                        <div>
+                            <h3 class="text-gray-500 font-bold">การตรวจสอบทั้งหมด</h3>
+                            <p id="total-generator" class="text-4xl font-bold text-blue-600">0</p>
+                        </div>
+                    </div>
+                    <div class="card p-6 flex items-center gap-4">
+                        <div class="icon-bg bg-green-100 text-green-600"><i class="ph-bold ph-check-circle text-2xl"></i></div>
+                        <div>
+                            <h3 class="text-gray-500 font-bold">ผลปกติทั้งหมด</h3>
+                            <p id="normal-generator" class="text-4xl font-bold text-green-600">0</p>
+                        </div>
+                    </div>
+                     <div class="card p-6 flex items-center gap-4">
+                        <div class="icon-bg bg-red-100 text-red-600"><i class="ph-bold ph-warning text-2xl"></i></div>
+                        <div>
+                            <h3 class="text-gray-500 font-bold">พบความผิดปกติ</h3>
+                            <p id="abnormal-generator" class="text-4xl font-bold text-red-600">0</p>
+                        </div>
+                    </div>
+                    <div class="card p-6">
+                        <h3 class="text-xl font-bold mb-4">สัดส่วนผลการตรวจสอบ</h3>
+                        <div class="relative h-64"><canvas id="summary-pie-chart-generator"></canvas></div>
+                    </div>
+                </div>
+                <div class="lg:col-span-2 card p-6">
+                    <h3 class="text-xl font-bold mb-4 text-red-600 flex items-center gap-2"><i class="ph-bold ph-bell-ringing"></i>รายการที่ต้องดำเนินการด่วน</h3>
+                    <div id="abnormal-alerts-container-generator" class="space-y-4 max-h-[80vh] overflow-y-auto pr-2"></div>
+                </div>
+            </div>
+            <div class="card p-6 mt-6">
+                <h3 class="text-xl font-bold mb-4">ประเภทปัญหาที่พบ</h3>
+                <div class="relative h-96"><canvas id="issue-breakdown-chart-generator"></canvas></div>
+            </div>
+            `;
+            
+            analyzeAndDisplayGeneratorData(reportData);
         }
+
+        function analyzeAndDisplayGeneratorData({ headers, rows }) {
+             document.getElementById('last-updated-generator').textContent = new Date().toLocaleTimeString('th-TH');
+            if (rows.length === 0) {
+                 updateGeneratorAlerts([], [], { headers });
+                 return;
+            }
+
+            const issueColumns = headers.filter(h => h.includes('รายการตรวจสอบ / กิจกรรม (Task)'));
+            const summaryHeaderKey = headers[headers.length - 2];
+            const noteHeaderKey = headers[headers.length - 1];
+
+            const abnormalSummaryKeyword = 'พบความผิดปกติ';
+            const abnormalTaskKeyword = 'ผิดปกติ';
+
+            const abnormalInspectionsData = rows.filter(row => {
+                const summaryIsAbnormal = summaryHeaderKey && row[summaryHeaderKey] && row[summaryHeaderKey].includes(abnormalSummaryKeyword);
+                const anyTaskIsAbnormal = issueColumns.some(col => row[col] && row[col].includes(abnormalTaskKeyword));
+                return summaryIsAbnormal || anyTaskIsAbnormal;
+            });
+            
+            const totalInspections = rows.length;
+            const abnormalCount = abnormalInspectionsData.length;
+            const normalCount = totalInspections - abnormalCount;
+
+            document.getElementById('total-generator').textContent = totalInspections;
+            document.getElementById('normal-generator').textContent = normalCount;
+            document.getElementById('abnormal-generator').textContent = abnormalCount;
+            
+            const issueCounts = {};
+            issueColumns.forEach(col => {
+                const cleanNameMatch = col.match(/\[(.*?)\]/);
+                if (cleanNameMatch?.[1]) issueCounts[cleanNameMatch[1]] = 0;
+            });
+
+            abnormalInspectionsData.forEach(row => {
+                issueColumns.forEach(col => {
+                    if (row[col] && row[col].includes(abnormalTaskKeyword)) {
+                        const cleanNameMatch = col.match(/\[(.*?)\]/);
+                        if (cleanNameMatch?.[1]) issueCounts[cleanNameMatch[1]]++;
+                    }
+                });
+            });
+
+            updateGeneratorCharts(normalCount, abnormalCount, issueCounts);
+            updateGeneratorAlerts(abnormalInspectionsData, issueColumns, { headers, summaryHeaderKey, noteHeaderKey });
+        }
+        
+        let generatorPieChart, generatorBarChart;
+        function updateGeneratorCharts(normal, abnormal, issueCounts) {
+            // Pie Chart
+            const pieCtx = document.getElementById('summary-pie-chart-generator').getContext('2d');
+            if (generatorPieChart) generatorPieChart.destroy();
+            generatorPieChart = new Chart(pieCtx, { type: 'doughnut', data: {
+                labels: ['ปกติทั้งหมด', 'พบความผิดปกติ'],
+                datasets: [{ data: [normal, abnormal], backgroundColor: ['#10B981', '#EF4444'], borderColor: '#f0f2f5', borderWidth: 4 }]
+            }, options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } } });
+
+            // Bar Chart
+            const barCtx = document.getElementById('issue-breakdown-chart-generator').getContext('2d');
+            const filteredIssues = Object.entries(issueCounts).filter(([_, count]) => count > 0);
+            if (generatorBarChart) generatorBarChart.destroy();
+            generatorBarChart = new Chart(barCtx, { type: 'bar', data: {
+                labels: filteredIssues.map(([label, _]) => label),
+                datasets: [{
+                    label: 'จำนวนครั้งที่พบปัญหา',
+                    data: filteredIssues.map(([_, count]) => count),
+                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                    borderColor: 'rgba(220, 38, 38, 1)',
+                    borderWidth: 2,
+                    borderRadius: 5
+                }]
+            }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } } });
+        }
+
+        function updateGeneratorAlerts(abnormalData, issueColumns, keys) {
+            const container = document.getElementById('abnormal-alerts-container-generator');
+            container.innerHTML = '';
+            
+            const totalRecords = allData['generator'] ? allData['generator'].rows.length : 0;
+            if (totalRecords === 0) {
+                 container.innerHTML = `<div class="text-center p-10 text-gray-500"><i class="ph-bold ph-info text-5xl text-blue-500"></i><p class="mt-4 font-semibold">ยังไม่มีข้อมูลในรายงานนี้</p></div>`;
+                 return;
+            }
+
+            if (abnormalData.length === 0) {
+                container.innerHTML = `<div class="text-center p-10 text-gray-500"><i class="ph-bold ph-check-circle text-5xl text-green-500"></i><p class="mt-4 font-semibold">ยอดเยี่ยม! ไม่พบรายการที่ผิดปกติ</p></div>`;
+                return;
+            }
+
+            const companyHeader = keys.headers.find(h => h.includes('บริษัท'));
+            const locationHeader = keys.headers.find(h => h.includes('สถานที่'));
+            const dateHeader = keys.headers.find(h => h.includes('วันที่ตรวจสอบ'));
+            const timestampHeader = keys.headers.find(h => h.includes('Timestamp'));
+
+            abnormalData.sort((a, b) => new Date(b[timestampHeader]) - new Date(a[timestampHeader])).forEach(row => {
+                const card = document.createElement('div');
+                card.className = 'border border-red-200 bg-red-50 p-4 rounded-lg';
+                
+                const failedChecks = issueColumns
+                    .filter(col => row[col] && row[col].includes('ผิดปกติ'))
+                    .map(col => col.match(/\[(.*?)\]/)?.[1] || col);
+
+                const noteText = row[keys.noteHeaderKey] || `<i>(ไม่มีหมายเหตุ)</i>`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-lg text-red-800">${row[locationHeader]}</p>
+                            <p class="text-sm text-gray-600">${row[companyHeader]}</p>
+                        </div>
+                        <div class="text-right text-sm text-gray-500">
+                            <p>${row[dateHeader]}</p>
+                            <p>${new Date(row[timestampHeader]).toLocaleTimeString('th-TH')}</p>
+                        </div>
+                    </div>
+                    ${failedChecks.length > 0 ? `
+                    <div class="mt-2">
+                        <p class="font-semibold text-gray-800 text-sm">รายการที่พบปัญหา:</p>
+                        <ul class="list-disc list-inside text-sm text-yellow-800 space-y-1 mt-1">
+                            ${failedChecks.map(check => `<li>${check}</li>`).join('')}
+                        </ul>
+                    </div>` : ''}
+                    <div class="mt-4 pt-4 border-t border-red-200">
+                        <p class="font-semibold text-gray-800">หมายเหตุเพิ่มเติม:</p>
+                        <p class="text-red-700 bg-red-100 p-2 rounded mt-1">${noteText}</p>
+                    </div>`;
+                container.appendChild(card);
+            });
+        }
+
+
     </script>
 </body>
 </html>
+
